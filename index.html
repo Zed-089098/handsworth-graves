@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Handsworth Cemetery Grave Finder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-100 text-gray-900 font-sans pb-10">
+    
+    <header class="bg-emerald-700 text-white p-6 text-center shadow-md">
+        <h1 class="text-2xl font-bold tracking-wider">HANDSWORTH CEMETERY</h1>
+        <h2 class="text-lg opacity-90">GRAVE FINDER</h2>
+    </header>
+
+    <div class="max-w-md mx-auto mt-4 px-4">
+        <input type="text" id="search-box" onkeyup="renderGraves()" placeholder="Search name, ID, or row..." class="w-full p-4 mb-4 border border-gray-300 rounded-xl shadow-sm text-lg" />
+        
+        <div class="flex gap-2 mb-2">
+            <button id="btn-All" onclick="setFilter('All')" class="flex-1 bg-emerald-700 text-white font-bold py-2 rounded-lg shadow-sm border-2 border-emerald-700">All</button>
+            <button id="btn-Needs cleaning" onclick="setFilter('Needs cleaning')" class="flex-1 bg-white text-gray-600 font-bold py-2 rounded-lg shadow-sm border-2 border-gray-200">Needs</button>
+            <button id="btn-Cleaned" onclick="setFilter('Cleaned')" class="flex-1 bg-white text-gray-600 font-bold py-2 rounded-lg shadow-sm border-2 border-gray-200">Cleaned</button>
+        </div>
+    </div>
+
+    <main class="p-4 max-w-md mx-auto" id="graves-container">
+        <p class="text-center text-gray-600 font-bold mt-10">Loading graves...</p>
+    </main>
+
+    <script>
+        const supabaseUrl = 'https://izpbjaochrsbiuqmkaph.supabase.co';
+        const supabaseKey = 'sb_publishable_ea-AYzP2iC31711_5F_WDA_EXyerFNZ';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+        let allGraves = [];
+        let currentFilter = 'All';
+
+        async function loadGraves() {
+            const { data, error } = await supabaseClient.from('graves').select('*').order('created_at', { ascending: false });
+            if (!error && data) {
+                allGraves = data;
+                renderGraves();
+            }
+        }
+
+        function setFilter(status) {
+            currentFilter = status;
+            ['All', 'Needs cleaning', 'Cleaned'].forEach(btn => {
+                const element = document.getElementById('btn-' + btn);
+                if (btn === status) {
+                    element.className = 'flex-1 bg-emerald-700 text-white font-bold py-2 rounded-lg shadow-sm border-2 border-emerald-700';
+                } else {
+                    element.className = 'flex-1 bg-white text-gray-600 font-bold py-2 rounded-lg shadow-sm border-2 border-gray-200';
+                }
+            });
+            renderGraves();
+        }
+
+        function renderGraves() {
+            const container = document.getElementById('graves-container');
+            const searchTerm = document.getElementById('search-box').value.toLowerCase();
+            
+            container.innerHTML = '';
+
+            const filteredGraves = allGraves.filter(grave => {
+                const matchesSearch = (grave.name && grave.name.toLowerCase().includes(searchTerm)) || 
+                                      (grave.grave_id && grave.grave_id.toLowerCase().includes(searchTerm)) ||
+                                      (grave.row_name && grave.row_name.toLowerCase().includes(searchTerm));
+                
+                const matchesFilter = currentFilter === 'All' || grave.status === currentFilter;
+                
+                return matchesSearch && matchesFilter;
+            });
+
+            if (filteredGraves.length === 0) {
+                container.innerHTML = `<p class="text-center text-gray-600 font-bold mt-10">No graves found.</p>`;
+                return;
+            }
+
+            filteredGraves.forEach(grave => {
+                const gmapsLink = `https://www.google.com/maps/search/?api=1&query=${grave.latitude},${grave.longitude}`;
+                const wazeLink = `https://waze.com/ul?ll=${grave.latitude},${grave.longitude}&navigate=yes`;
+                
+                const whatsappText = `Handsworth Cemetery Grave Finder%0AGrave: ${grave.grave_id}%0AName: ${grave.name}%0ASection: ${grave.section || 'N/A'}%0ARow: ${grave.row_name || 'N/A'}%0ALocation: ${gmapsLink}`;
+                const whatsappLink = `https://wa.me/?text=${whatsappText}`;
+                
+                const statusColor = grave.status === 'Needs cleaning' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-emerald-100 text-emerald-800 border-emerald-300';
+
+                // CHECK IF THERE IS A PHOTO
+                let photoHTML = '';
+                if (grave.photo_url) {
+                    photoHTML = `<img src="${grave.photo_url}" alt="Grave ${grave.grave_id}" class="w-full h-48 object-cover rounded-lg mb-4 border border-gray-200">`;
+                }
+
+                const cardHTML = `
+                    <div class="bg-white p-5 rounded-xl shadow-md border border-gray-200 mb-6">
+                        <h3 class="text-xl font-bold text-emerald-800">GRAVE ${grave.grave_id}</h3>
+                        <p class="text-2xl font-bold mb-2">${grave.name}</p>
+                        
+                        ${photoHTML}
+                        
+                        <div class="text-gray-700 mb-4">
+                            <p>Section: <span class="font-bold">${grave.section || 'N/A'}</span></p>
+                            <p>Row: <span class="font-bold">${grave.row_name || 'N/A'}</span></p>
+                        </div>
+
+                        <div class="mb-4 inline-block px-3 py-1 rounded-full border font-bold text-sm ${statusColor}">
+                            STATUS: ${grave.status.toUpperCase()}
+                        </div>
+
+                        <div class="space-y-3">
+                            <div class="flex gap-2">
+                                <a href="${gmapsLink}" target="_blank" class="flex-1 text-center bg-blue-600 text-white font-bold py-3 rounded-lg shadow-sm">📍 Maps</a>
+                                <a href="${wazeLink}" target="_blank" class="flex-1 text-center bg-cyan-600 text-white font-bold py-3 rounded-lg shadow-sm">🚗 Waze</a>
+                            </div>
+                            <a href="${whatsappLink}" target="_blank" class="block w-full text-center bg-green-500 text-white font-bold py-3 rounded-lg shadow-sm">💬 Share on WhatsApp</a>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += cardHTML;
+            });
+        }
+
+        loadGraves();
+    </script>
+</body>
+</html>
